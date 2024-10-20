@@ -67,6 +67,7 @@ class _StartScreenState extends State<StartScreen> {
           children: <Widget>[
             Center(
               child: CircleAvatar(
+                backgroundImage: AssetImage('assets/truth or dare.jpg'),
 
                 radius: 70.0,
               ),

@@ -24,7 +24,7 @@ class Dare extends ChangeNotifier {
   String dare = "Loading...";
 
   Future<void> fetch() async {
-    final url = Uri.parse("https://api.truthordarebot.xyz/api/nhie");
+    final url = Uri.parse("https://api.truthordarebot.xyz/api/dare");
 
     try {
       final HttpClient client = HttpClient();
