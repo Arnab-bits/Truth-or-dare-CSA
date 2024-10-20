@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "730538388169",
+    "project_id": "csa-proj",
+    "storage_bucket": "csa-proj.appspot.com"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:730538388169:android:04c17b2f02ea498cc5fb18",
+        "android_client_info": {
+          "package_name": "com.truth.app"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyAO6ARfE0wkyF64NDMgB3HX8im1Zaq72Nk"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
