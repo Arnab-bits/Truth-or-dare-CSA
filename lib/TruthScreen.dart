@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
+import 'package:http/http.dart' as http;
 import 'dart:convert';
-import 'dart:io';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 
 class Ques {
   final String id;
@@ -8,7 +10,12 @@ class Ques {
   final String rating;
   final String question;
 
-  Ques({required this.id, required this.type, required this.rating, required this.question});
+  Ques({
+    required this.id,
+    required this.type,
+    required this.rating,
+    required this.question,
+  });
 
   factory Ques.fromJson(Map<String, dynamic> json) {
     return Ques(
@@ -20,49 +27,70 @@ class Ques {
   }
 }
 
-class Truth extends ChangeNotifier {
-  String truth = "Loading...";
+// Truth Question Notifier
+class TruthNotifier extends StateNotifier<AsyncValue<String>> {
+  TruthNotifier() : super(AsyncValue.loading());
 
-  Future<void> fetch() async {
-    final url = Uri.parse("https://api.truthordarebot.xyz/v1/truth");
-
+  Future<void> fetchTruth() async {
+    state = AsyncValue.loading();
     try {
-      final HttpClient client = HttpClient();
-      final HttpClientRequest request = await client.getUrl(url);
-      final HttpClientResponse response = await request.close();
+      final response = await http.get(
+          Uri.parse("https://api.truthordarebot.xyz/v1/truth")
+      );
 
       if (response.statusCode == 200) {
-        final responseBody = await response.transform(utf8.decoder).join();
-        final json = jsonDecode(responseBody);
+        final json = jsonDecode(response.body);
         final ques = Ques.fromJson(json);
-        truth = ques.question;
+        state = AsyncValue.data(ques.question);
       } else {
-        truth = "Failed to load question";
+        state = AsyncValue.error(
+            Exception("Failed to load question"),
+            StackTrace.current
+        );
       }
-    } catch (e) {
-      truth = "Error loading question";
+    } catch (e, stackTrace) {
+      state = AsyncValue.error(e, stackTrace);
     }
-
-    notifyListeners();
   }
 }
 
-class TruthScreen extends StatefulWidget {
+// Truth Provider
+final truthProvider = StateNotifierProvider<TruthNotifier, AsyncValue<String>>((ref) {
+  return TruthNotifier();
+});
+
+// Liked Questions Provider
+final likedQuestionsProvider = StreamProvider<List<String>>((ref) {
+  return FirebaseFirestore.instance
+      .collection('liked_questions')
+      .snapshots()
+      .map((snapshot) =>
+      snapshot.docs.map((doc) => doc['question'] as String).toList()
+  );
+});
+
+class TruthScreen extends ConsumerStatefulWidget {
+  const TruthScreen({Key? key}) : super(key: key);
+
   @override
   _TruthScreenState createState() => _TruthScreenState();
 }
 
-class _TruthScreenState extends State<TruthScreen> {
-  final Truth ques = Truth();
-
+class _TruthScreenState extends ConsumerState<TruthScreen> {
   @override
   void initState() {
     super.initState();
-    ques.fetch();
+    // Fetch a new truth when the screen is first opened
+    Future.microtask(() =>
+        ref.read(truthProvider.notifier).fetchTruth()
+    );
   }
 
   @override
   Widget build(BuildContext context) {
+    final truthAsyncValue = ref.watch(truthProvider);
+    final likedQuestionsAsync = ref.watch(likedQuestionsProvider);
+
     return Scaffold(
       appBar: AppBar(
         title: Text("Truth"),
@@ -72,22 +100,71 @@ class _TruthScreenState extends State<TruthScreen> {
       body: Container(
         color: Colors.white,
         child: Center(
-          child: AnimatedBuilder(
-            animation: ques,
-            builder: (context, _) {
+          child: truthAsyncValue.when(
+            loading: () => CircularProgressIndicator(),
+            error: (err, _) => Text("Error: $err"),
+            data: (truth) {
+              // Check if the current truth is liked
+              final isLiked = likedQuestionsAsync.whenOrNull(
+                  data: (likedQuestions) => likedQuestions.contains(truth)
+              ) ?? false;
+
               return ShaderMask(
                 shaderCallback: (bounds) => LinearGradient(
                   colors: [Colors.blue, Colors.green, Colors.orange, Colors.red],
                   begin: Alignment.topLeft,
                   end: Alignment.bottomRight,
                 ).createShader(bounds),
-                child: Text(
-                  "Your truth question is:\n\n${ques.truth}",
-                  style: TextStyle(
-                    fontSize: 38,
-                    color: Colors.white,
-                  ),
-                  textAlign: TextAlign.center,
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Text(
+                      "Your truth question is:\n\n$truth",
+                      style: TextStyle(
+                        fontSize: 38,
+                        color: Colors.white,
+                      ),
+                      textAlign: TextAlign.center,
+                    ),
+                    const SizedBox(height: 20),
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        IconButton(
+                          icon: Icon(
+                            isLiked ? Icons.favorite : Icons.favorite_border,
+                            color: isLiked ? Colors.red : Colors.grey,
+                            size: 36,
+                          ),
+                          onPressed: () async {
+                            final collection = FirebaseFirestore.instance.collection('liked_questions');
+
+                            if (!isLiked) {
+                              // Add to liked questions
+                              await collection.add({
+                                'question': truth,
+                                'timestamp': FieldValue.serverTimestamp(),
+                              });
+                            } else {
+                              // Remove from liked questions
+                              final snapshot = await collection
+                                  .where('question', isEqualTo: truth)
+                                  .get();
+
+                              for (var doc in snapshot.docs) {
+                                await doc.reference.delete();
+                              }
+                            }
+                          },
+                        ),
+                        const SizedBox(width: 20),
+                        ElevatedButton(
+                          onPressed: () => ref.read(truthProvider.notifier).fetchTruth(),
+                          child: Text('New Question'),
+                        ),
+                      ],
+                    ),
+                  ],
                 ),
               );
             },
@@ -99,6 +176,8 @@ class _TruthScreenState extends State<TruthScreen> {
 }
 
 class MainScreen extends StatelessWidget {
+  const MainScreen({Key? key}) : super(key: key);
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -112,7 +191,7 @@ class MainScreen extends StatelessWidget {
           onPressed: () {
             Navigator.push(
               context,
-              MaterialPageRoute(builder: (context) => TruthScreen()),
+              MaterialPageRoute(builder: (context) => const TruthScreen()),
             );
           },
           child: Text("Go to Truth Screen"),
@@ -123,7 +202,9 @@ class MainScreen extends StatelessWidget {
 }
 
 void main() {
-  runApp(MaterialApp(
-    home: MainScreen(),
+  runApp(ProviderScope(
+    child: MaterialApp(
+      home: MainScreen(),
+    ),
   ));
 }

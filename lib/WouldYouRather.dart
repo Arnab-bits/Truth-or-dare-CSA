@@ -1,14 +1,22 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'dart:convert';
-import 'dart:io';  // Importing dart:io for HttpClient
+import 'dart:io';
 
+// Question Model
 class Ques {
   final String id;
   final String type;
   final String rating;
   final String question;
 
-  Ques({required this.id, required this.type, required this.rating, required this.question});
+  Ques({
+    required this.id,
+    required this.type,
+    required this.rating,
+    required this.question,
+  });
 
   factory Ques.fromJson(Map<String, dynamic> json) {
     return Ques(
@@ -20,10 +28,12 @@ class Ques {
   }
 }
 
-class Rather extends ChangeNotifier {
-  String rather = "Loading...";
+// Would You Rather Notifier
+class WouldYouRatherNotifier extends StateNotifier<AsyncValue<String>> {
+  WouldYouRatherNotifier() : super(AsyncValue.loading());
 
-  Future<void> fetch() async {
+  Future<void> fetchQuestion() async {
+    state = AsyncValue.loading();
     final url = Uri.parse("https://api.truthordarebot.xyz/api/wyr");
 
     try {
@@ -35,59 +45,134 @@ class Rather extends ChangeNotifier {
         final responseBody = await response.transform(utf8.decoder).join();
         final json = jsonDecode(responseBody);
         final ques = Ques.fromJson(json);
-        rather = ques.question;
+        state = AsyncValue.data(ques.question);
       } else {
-        rather = "Failed to load question";
+        state = AsyncValue.error(
+          Exception("Failed to load question"),
+          StackTrace.current,
+        );
       }
-    } catch (e) {
-      rather = "Error loading question";
+    } catch (e, stackTrace) {
+      state = AsyncValue.error(e, stackTrace);
     }
-
-    notifyListeners();
   }
 }
 
-class WouldYou extends StatefulWidget {
+// Would You Rather Provider
+final wouldYouRatherProvider =
+StateNotifierProvider<WouldYouRatherNotifier, AsyncValue<String>>((ref) {
+  return WouldYouRatherNotifier();
+});
+
+// Liked Questions Provider
+final likedQuestionsProvider = StreamProvider<List<String>>((ref) {
+  return FirebaseFirestore.instance
+      .collection('liked_wyr_questions')
+      .snapshots()
+      .map((snapshot) =>
+      snapshot.docs.map((doc) => doc['question'] as String).toList());
+});
+
+// Would You Rather Screen
+class WouldYouRatherScreen extends ConsumerStatefulWidget {
+  const WouldYouRatherScreen({Key? key}) : super(key: key);
+
   @override
-  _WouldYouState createState() => _WouldYouState();
+  _WouldYouRatherScreenState createState() => _WouldYouRatherScreenState();
 }
 
-class _WouldYouState extends State<WouldYou> {
-  final Rather ques = Rather();
-
+class _WouldYouRatherScreenState extends ConsumerState<WouldYouRatherScreen> {
   @override
   void initState() {
     super.initState();
-    ques.fetch();
+    // Fetch a new "Would You Rather" question when the screen is first opened
+    Future.microtask(() =>
+        ref.read(wouldYouRatherProvider.notifier).fetchQuestion());
   }
 
   @override
   Widget build(BuildContext context) {
+    final questionAsyncValue = ref.watch(wouldYouRatherProvider);
+    final likedQuestionsAsync = ref.watch(likedQuestionsProvider);
+
     return Scaffold(
       appBar: AppBar(
-        title: Text("Would you Rather"),
-        backgroundColor: Colors.white,  // AppBar background white
-        iconTheme: IconThemeData(color: Colors.black),  // Back button color
+        title: Text("Would You Rather"),
+        backgroundColor: Colors.white,
+        iconTheme: IconThemeData(color: Colors.black),
       ),
       body: Container(
-        color: Colors.white,  // Body background white
+        color: Colors.white,
         child: Center(
-          child: AnimatedBuilder(
-            animation: ques,
-            builder: (context, _) {
+          child: questionAsyncValue.when(
+            loading: () => CircularProgressIndicator(),
+            error: (err, _) => Text("Error: $err"),
+            data: (question) {
+              // Check if the current question is liked
+              final isLiked = likedQuestionsAsync.whenOrNull(
+                  data: (likedQuestions) =>
+                      likedQuestions.contains(question)) ??
+                  false;
+
               return ShaderMask(
                 shaderCallback: (bounds) => LinearGradient(
                   colors: [Colors.blue, Colors.green, Colors.orange, Colors.red],
                   begin: Alignment.topLeft,
                   end: Alignment.bottomRight,
                 ).createShader(bounds),
-                child: Text(
-                  "Would you rather:\n\n${ques.rather}",
-                  style: TextStyle(
-                    fontSize: 38,
-                    color: Colors.white,  // Text color must be white for ShaderMask to work
-                  ),
-                  textAlign: TextAlign.center,
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Text(
+                      "Would you rather:\n\n$question",
+                      style: TextStyle(
+                        fontSize: 38,
+                        color: Colors.white,
+                      ),
+                      textAlign: TextAlign.center,
+                    ),
+                    const SizedBox(height: 20),
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        IconButton(
+                          icon: Icon(
+                            isLiked ? Icons.favorite : Icons.favorite_border,
+                            color: isLiked ? Colors.red : Colors.grey,
+                            size: 36,
+                          ),
+                          onPressed: () async {
+                            final collection = FirebaseFirestore.instance
+                                .collection('liked_wyr_questions');
+
+                            if (!isLiked) {
+                              // Add to liked questions
+                              await collection.add({
+                                'question': question,
+                                'timestamp': FieldValue.serverTimestamp(),
+                              });
+                            } else {
+                              // Remove from liked questions
+                              final snapshot = await collection
+                                  .where('question', isEqualTo: question)
+                                  .get();
+
+                              for (var doc in snapshot.docs) {
+                                await doc.reference.delete();
+                              }
+                            }
+                          },
+                        ),
+                        const SizedBox(width: 20),
+                        ElevatedButton(
+                          onPressed: () => ref
+                              .read(wouldYouRatherProvider.notifier)
+                              .fetchQuestion(),
+                          child: Text('New Question'),
+                        ),
+                      ],
+                    ),
+                  ],
                 ),
               );
             },
@@ -98,24 +183,25 @@ class _WouldYouState extends State<WouldYou> {
   }
 }
 
+// Main Screen
 class MainScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
         title: Text("Main Screen"),
-        backgroundColor: Colors.white,  // AppBar background white
-        iconTheme: IconThemeData(color: Colors.black),  // Back button color
+        backgroundColor: Colors.white,
+        iconTheme: IconThemeData(color: Colors.black),
       ),
       body: Center(
         child: ElevatedButton(
           onPressed: () {
             Navigator.push(
               context,
-              MaterialPageRoute(builder: (context) => WouldYou()),
+              MaterialPageRoute(builder: (context) => WouldYouRatherScreen()),
             );
           },
-          child: Text("Go to Truth Screen"),
+          child: Text("Go to 'Would You Rather' Screen"),
         ),
       ),
     );
@@ -123,7 +209,9 @@ class MainScreen extends StatelessWidget {
 }
 
 void main() {
-  runApp(MaterialApp(
-    home: MainScreen(),
+  runApp(ProviderScope(
+    child: MaterialApp(
+      home: MainScreen(),
+    ),
   ));
 }

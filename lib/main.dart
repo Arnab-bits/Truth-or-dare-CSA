@@ -1,20 +1,24 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'firebase_options.dart';
 import 'MainScreen.dart';
-import 'dart:async';
-import 'auth_gate.dart';
 import 'auth_gate.dart';
 
-void main() async {
-  WidgetsFlutterBinding.ensureInitialized();
+// Riverpod Provider for Firebase Initialization
+final firebaseInitProvider = FutureProvider<void>((ref) async {
   await Firebase.initializeApp(
     options: DefaultFirebaseOptions.currentPlatform,
   );
+});
 
-
-  runApp( MyApp());
+void main() {
+  runApp(
+    ProviderScope(
+      child: MyApp(),
+    ),
+  );
 }
 
 class MyApp extends StatelessWidget {
@@ -27,14 +31,16 @@ class MyApp extends StatelessWidget {
   }
 }
 
-class SplashScreen extends StatefulWidget {
+class SplashScreen extends ConsumerStatefulWidget {
   @override
   _SplashScreenState createState() => _SplashScreenState();
 }
 
-class _SplashScreenState extends State<SplashScreen> with SingleTickerProviderStateMixin {
+class _SplashScreenState extends ConsumerState<SplashScreen> with SingleTickerProviderStateMixin {
   late AnimationController _controller;
   late Animation<double> _animation;
+
+  bool _hasNavigated = false; // Prevent multiple navigations
 
   @override
   void initState() {
@@ -47,14 +53,6 @@ class _SplashScreenState extends State<SplashScreen> with SingleTickerProviderSt
 
     _animation = Tween<double>(begin: 1.0, end: 0.0).animate(_controller);
     _controller.forward();
-
-    Timer(Duration(seconds: 2), () {
-      Navigator.of(context).pushReplacement(
-        MaterialPageRoute(
-          builder: (context) => AuthGate(),
-        ),
-      );
-    });
   }
 
   @override
@@ -65,32 +63,43 @@ class _SplashScreenState extends State<SplashScreen> with SingleTickerProviderSt
 
   @override
   Widget build(BuildContext context) {
+    final firebaseState = ref.watch(firebaseInitProvider);
+
+    ref.listen<AsyncValue<void>>(firebaseInitProvider, (previous, next) {
+      if (next is AsyncData && !_hasNavigated) {
+        _hasNavigated = true; // Set the flag to true
+        Navigator.of(context).pushReplacement(
+          MaterialPageRoute(
+            builder: (context) => AuthGate(),
+          ),
+        );
+      }
+    });
+
     return Scaffold(
-      body: FadeTransition(
-        opacity: _animation,
-        child: Container(
-          width: double.infinity,
-          height: double.infinity,
-          child: Image.asset(
-            "assets/truth or dare.jpg",
-            fit: BoxFit.cover,
+      body: firebaseState.when(
+        loading: () => Center(
+          child: CircularProgressIndicator(),
+        ),
+        error: (error, stack) => Center(
+          child: Text(
+            'Error initializing Firebase: $error',
+            style: TextStyle(color: Colors.red),
+          ),
+        ),
+        data: (_) => FadeTransition(
+          opacity: _animation,
+          child: Container(
+            width: double.infinity,
+            height: double.infinity,
+            child: Image.asset(
+              "assets/truth or dare.jpg",
+              fit: BoxFit.cover,
+            ),
           ),
         ),
       ),
     );
   }
 }
-
-
-
-
-
-
-
-
-
-
-
-
-
 
