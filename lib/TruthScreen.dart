@@ -27,7 +27,6 @@ class Ques {
   }
 }
 
-// Truth Question Notifier
 class TruthNotifier extends StateNotifier<AsyncValue<String>> {
   TruthNotifier() : super(AsyncValue.loading());
 
@@ -54,12 +53,10 @@ class TruthNotifier extends StateNotifier<AsyncValue<String>> {
   }
 }
 
-// Truth Provider
 final truthProvider = StateNotifierProvider<TruthNotifier, AsyncValue<String>>((ref) {
   return TruthNotifier();
 });
 
-// Liked Questions Provider
 final likedQuestionsProvider = StreamProvider<List<String>>((ref) {
   return FirebaseFirestore.instance
       .collection('liked_questions')
@@ -80,7 +77,6 @@ class _TruthScreenState extends ConsumerState<TruthScreen> {
   @override
   void initState() {
     super.initState();
-    // Fetch a new truth when the screen is first opened
     Future.microtask(() =>
         ref.read(truthProvider.notifier).fetchTruth()
     );
@@ -104,7 +100,6 @@ class _TruthScreenState extends ConsumerState<TruthScreen> {
             loading: () => CircularProgressIndicator(),
             error: (err, _) => Text("Error: $err"),
             data: (truth) {
-              // Check if the current truth is liked
               final isLiked = likedQuestionsAsync.whenOrNull(
                   data: (likedQuestions) => likedQuestions.contains(truth)
               ) ?? false;
@@ -140,13 +135,13 @@ class _TruthScreenState extends ConsumerState<TruthScreen> {
                             final collection = FirebaseFirestore.instance.collection('liked_questions');
 
                             if (!isLiked) {
-                              // Add to liked questions
+
                               await collection.add({
                                 'question': truth,
                                 'timestamp': FieldValue.serverTimestamp(),
                               });
                             } else {
-                              // Remove from liked questions
+
                               final snapshot = await collection
                                   .where('question', isEqualTo: truth)
                                   .get();

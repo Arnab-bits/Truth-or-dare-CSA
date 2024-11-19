@@ -27,7 +27,6 @@ class Ques {
   }
 }
 
-// Dare Question Notifier
 class DareNotifier extends StateNotifier<AsyncValue<String>> {
   DareNotifier() : super(AsyncValue.loading());
 
@@ -54,12 +53,12 @@ class DareNotifier extends StateNotifier<AsyncValue<String>> {
   }
 }
 
-// Dare Provider
+
 final dareProvider = StateNotifierProvider<DareNotifier, AsyncValue<String>>((ref) {
   return DareNotifier();
 });
 
-// Liked Questions Provider
+
 final likedQuestionsProvider = StreamProvider<List<String>>((ref) {
   return FirebaseFirestore.instance
       .collection('liked_dares')
@@ -79,7 +78,7 @@ class _DareScreenState extends ConsumerState<DareScreen> {
   @override
   void initState() {
     super.initState();
-    // Fetch a new dare when the screen is first opened
+
     Future.microtask(() => ref.read(dareProvider.notifier).fetchDare());
   }
 
@@ -101,7 +100,7 @@ class _DareScreenState extends ConsumerState<DareScreen> {
             loading: () => CircularProgressIndicator(),
             error: (err, _) => Text("Error: $err"),
             data: (dare) {
-              // Check if the current dare is liked
+
               final isLiked = likedQuestionsAsync.whenOrNull(
                   data: (likedQuestions) => likedQuestions.contains(dare)) ??
                   false;
@@ -138,13 +137,13 @@ class _DareScreenState extends ConsumerState<DareScreen> {
                                 .collection('liked_questions');
 
                             if (!isLiked) {
-                              // Add to liked dares
+
                               await collection.add({
                                 'question': dare,
                                 'timestamp': FieldValue.serverTimestamp(),
                               });
                             } else {
-                              // Remove from liked dares
+
                               final snapshot = await collection
                                   .where('question', isEqualTo: dare)
                                   .get();

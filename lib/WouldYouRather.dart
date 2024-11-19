@@ -4,7 +4,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'dart:convert';
 import 'dart:io';
 
-// Question Model
+
 class Ques {
   final String id;
   final String type;
@@ -28,7 +28,7 @@ class Ques {
   }
 }
 
-// Would You Rather Notifier
+
 class WouldYouRatherNotifier extends StateNotifier<AsyncValue<String>> {
   WouldYouRatherNotifier() : super(AsyncValue.loading());
 
@@ -58,13 +58,12 @@ class WouldYouRatherNotifier extends StateNotifier<AsyncValue<String>> {
   }
 }
 
-// Would You Rather Provider
 final wouldYouRatherProvider =
 StateNotifierProvider<WouldYouRatherNotifier, AsyncValue<String>>((ref) {
   return WouldYouRatherNotifier();
 });
 
-// Liked Questions Provider
+
 final likedQuestionsProvider = StreamProvider<List<String>>((ref) {
   return FirebaseFirestore.instance
       .collection('liked_wyr_questions')
@@ -73,7 +72,7 @@ final likedQuestionsProvider = StreamProvider<List<String>>((ref) {
       snapshot.docs.map((doc) => doc['question'] as String).toList());
 });
 
-// Would You Rather Screen
+
 class WouldYouRatherScreen extends ConsumerStatefulWidget {
   const WouldYouRatherScreen({Key? key}) : super(key: key);
 
@@ -85,7 +84,7 @@ class _WouldYouRatherScreenState extends ConsumerState<WouldYouRatherScreen> {
   @override
   void initState() {
     super.initState();
-    // Fetch a new "Would You Rather" question when the screen is first opened
+
     Future.microtask(() =>
         ref.read(wouldYouRatherProvider.notifier).fetchQuestion());
   }
@@ -108,7 +107,7 @@ class _WouldYouRatherScreenState extends ConsumerState<WouldYouRatherScreen> {
             loading: () => CircularProgressIndicator(),
             error: (err, _) => Text("Error: $err"),
             data: (question) {
-              // Check if the current question is liked
+
               final isLiked = likedQuestionsAsync.whenOrNull(
                   data: (likedQuestions) =>
                       likedQuestions.contains(question)) ??
@@ -146,13 +145,13 @@ class _WouldYouRatherScreenState extends ConsumerState<WouldYouRatherScreen> {
                                 .collection('liked_wyr_questions');
 
                             if (!isLiked) {
-                              // Add to liked questions
+
                               await collection.add({
                                 'question': question,
                                 'timestamp': FieldValue.serverTimestamp(),
                               });
                             } else {
-                              // Remove from liked questions
+
                               final snapshot = await collection
                                   .where('question', isEqualTo: question)
                                   .get();
@@ -183,7 +182,7 @@ class _WouldYouRatherScreenState extends ConsumerState<WouldYouRatherScreen> {
   }
 }
 
-// Main Screen
+
 class MainScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {

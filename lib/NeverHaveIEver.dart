@@ -27,7 +27,6 @@ class Ques {
   }
 }
 
-// Never Have I Ever Notifier
 class NeverEverNotifier extends StateNotifier<AsyncValue<String>> {
   NeverEverNotifier() : super(AsyncValue.loading());
 
@@ -54,13 +53,13 @@ class NeverEverNotifier extends StateNotifier<AsyncValue<String>> {
   }
 }
 
-// Never Have I Ever Provider
+
 final neverEverProvider =
 StateNotifierProvider<NeverEverNotifier, AsyncValue<String>>((ref) {
   return NeverEverNotifier();
 });
 
-// Liked Questions Provider
+
 final likedQuestionsProvider = StreamProvider<List<String>>((ref) {
   return FirebaseFirestore.instance
       .collection('liked_nhie_questions')
@@ -80,7 +79,7 @@ class _NeverEverScreenState extends ConsumerState<NeverEverScreen> {
   @override
   void initState() {
     super.initState();
-    // Fetch a new question when the screen is first opened
+
     Future.microtask(() =>
         ref.read(neverEverProvider.notifier).fetchEver());
   }
@@ -103,7 +102,7 @@ class _NeverEverScreenState extends ConsumerState<NeverEverScreen> {
             loading: () => CircularProgressIndicator(),
             error: (err, _) => Text("Error: $err"),
             data: (question) {
-              // Check if the current question is liked
+
               final isLiked = likedQuestionsAsync.whenOrNull(
                   data: (likedQuestions) =>
                       likedQuestions.contains(question)) ??
@@ -140,13 +139,13 @@ class _NeverEverScreenState extends ConsumerState<NeverEverScreen> {
                             final collection = FirebaseFirestore.instance.collection('liked_questions');
 
                             if (!isLiked) {
-                              // Add to liked questions
+
                               await collection.add({
                                 'question': question,
                                 'timestamp': FieldValue.serverTimestamp(),
                               });
                             } else {
-                              // Remove from liked questions
+
                               final snapshot = await collection
                                   .where('question', isEqualTo: question)
                                   .get();

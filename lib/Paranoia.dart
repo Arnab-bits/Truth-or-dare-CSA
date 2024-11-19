@@ -4,7 +4,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'dart:convert';
 import 'dart:io';
 
-// Question Model
+
 class Ques {
   final String id;
   final String type;
@@ -28,7 +28,7 @@ class Ques {
   }
 }
 
-// Paranoia Question Notifier
+
 class ParanoiaNotifier extends StateNotifier<AsyncValue<String>> {
   ParanoiaNotifier() : super(AsyncValue.loading());
 
@@ -58,13 +58,13 @@ class ParanoiaNotifier extends StateNotifier<AsyncValue<String>> {
   }
 }
 
-// Paranoia Provider
+
 final paranoiaProvider =
 StateNotifierProvider<ParanoiaNotifier, AsyncValue<String>>((ref) {
   return ParanoiaNotifier();
 });
 
-// Liked Questions Provider
+
 final likedParanoiaQuestionsProvider = StreamProvider<List<String>>((ref) {
   return FirebaseFirestore.instance
       .collection('liked_paranoia_questions')
@@ -73,7 +73,7 @@ final likedParanoiaQuestionsProvider = StreamProvider<List<String>>((ref) {
       snapshot.docs.map((doc) => doc['question'] as String).toList());
 });
 
-// Paranoia Screen
+
 class ParanoiaScreen extends ConsumerStatefulWidget {
   const ParanoiaScreen({Key? key}) : super(key: key);
 
@@ -85,7 +85,7 @@ class _ParanoiaScreenState extends ConsumerState<ParanoiaScreen> {
   @override
   void initState() {
     super.initState();
-    // Fetch a new paranoia question when the screen is first opened
+
     Future.microtask(() =>
         ref.read(paranoiaProvider.notifier).fetchParanoia());
   }
@@ -108,7 +108,7 @@ class _ParanoiaScreenState extends ConsumerState<ParanoiaScreen> {
             loading: () => CircularProgressIndicator(),
             error: (err, _) => Text("Error: $err"),
             data: (paranoiaQuestion) {
-              // Check if the current paranoia question is liked
+
               final isLiked = likedQuestionsAsync.whenOrNull(
                   data: (likedQuestions) =>
                       likedQuestions.contains(paranoiaQuestion)) ??
@@ -146,13 +146,13 @@ class _ParanoiaScreenState extends ConsumerState<ParanoiaScreen> {
                                 .collection('liked_paranoia_questions');
 
                             if (!isLiked) {
-                              // Add to liked questions
+
                               await collection.add({
                                 'question': paranoiaQuestion,
                                 'timestamp': FieldValue.serverTimestamp(),
                               });
                             } else {
-                              // Remove from liked questions
+
                               final snapshot = await collection
                                   .where('question', isEqualTo: paranoiaQuestion)
                                   .get();
@@ -182,7 +182,7 @@ class _ParanoiaScreenState extends ConsumerState<ParanoiaScreen> {
   }
 }
 
-// Main Screen
+
 class MainScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
